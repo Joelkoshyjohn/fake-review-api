@@ -1,5 +1,5 @@
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import numpy as np
@@ -21,9 +21,10 @@ tfidf_matrix = joblib.load("tfidf_matrix.pkl")
 
 app = FastAPI()
 
+# 🔥 CORS FIX
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
