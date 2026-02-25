@@ -1,10 +1,9 @@
-
 import pandas as pd
 import numpy as np
 import joblib
 from scipy.sparse import hstack
 
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report
@@ -12,75 +11,103 @@ from xgboost import XGBClassifier
 
 from features import extract_features
 
-# Load dataset
-df = pd.read_csv("data/reviews.csv")
-df = df.dropna()
+# ===============================
+# 1️⃣ LOAD DATASET 1 (Fake Review)
+# ===============================
 
-# Convert labels
-df["label"] = df["label"].map({"CG": 0, "OR": 1})
+df1 = pd.read_csv("data/reviews.csv").dropna()
 
-X_text = df["text_"]
-y = df["label"]
+# Adjust column names if needed
+df1["label"] = df1["label"].map({"CG": 0, "OR": 1})  # Example
+df1 = df1.rename(columns={"text_": "text"})
 
-# Improved TF-IDF
+# ===============================
+# 2️⃣ LOAD DATASET 2 (AI vs Human)
+# ===============================
+
+df2 = pd.read_csv("data/new_dataset.csv").dropna()
+
+# Rename columns properly
+df2 = df2.rename(columns={
+    "article": "text",
+    "class": "label"
+})
+
+# Keep only required columns
+df2 = df2[["text", "label"]]
+
+# ===============================
+# 3️⃣ MERGE BOTH
+# ===============================
+
+df = pd.concat([df1[["text", "label"]], df2[["text", "label"]]])
+
+print("Total samples:", len(df))
+
+# ===============================
+# 4️⃣ TF-IDF
+# ===============================
+
 vectorizer = TfidfVectorizer(
-    max_features=8000,
+    max_features=12000,
     ngram_range=(1,3),
-    min_df=5,
+    min_df=2,
     max_df=0.9,
     stop_words="english"
 )
 
-X_tfidf = vectorizer.fit_transform(X_text)
+X_tfidf = vectorizer.fit_transform(df["text"])
 
-# Save TF-IDF matrix for similarity detection
-joblib.dump(X_tfidf, "tfidf_matrix.pkl")
+# ===============================
+# 5️⃣ Custom Features
+# ===============================
 
-# Custom features
-custom_features = np.array([extract_features(text) for text in X_text])
+custom_features = np.array([extract_features(t) for t in df["text"]])
+
 scaler = StandardScaler()
 custom_features = scaler.fit_transform(custom_features)
 
 X = hstack([X_tfidf, custom_features])
+y = df["label"]
+
+# ===============================
+# 6️⃣ Train/Test Split
+# ===============================
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# GridSearch for XGBoost
-param_grid = {
-    'n_estimators': [200, 300],
-    'max_depth': [4, 6],
-    'learning_rate': [0.05, 0.1],
-    'subsample': [0.8, 1.0]
-}
+# ===============================
+# 7️⃣ Train Model
+# ===============================
 
-xgb = XGBClassifier(eval_metric="logloss")
-
-grid = GridSearchCV(
-    xgb,
-    param_grid,
-    cv=3,
-    scoring='f1',
-    verbose=1,
-    n_jobs=-1
+model = XGBClassifier(
+    n_estimators=350,
+    max_depth=6,
+    learning_rate=0.07,
+    subsample=0.9,
+    colsample_bytree=0.8,
+    eval_metric="logloss"
 )
 
-grid.fit(X_train, y_train)
+model.fit(X_train, y_train)
 
-model = grid.best_estimator_
+# ===============================
+# 8️⃣ Evaluation
+# ===============================
 
-# Evaluation
 y_pred = model.predict(X_test)
+
+print("\nClassification Report:\n")
 print(classification_report(y_test, y_pred))
 
-# Cross-validation score
-cv_scores = cross_val_score(model, X, y, cv=5, scoring='f1')
-print("Cross-validated F1 Score:", cv_scores.mean())
+# ===============================
+# 9️⃣ Save Model
+# ===============================
 
-# Save model
 joblib.dump(model, "model.pkl")
 joblib.dump(vectorizer, "vectorizer.pkl")
 joblib.dump(scaler, "scaler.pkl")
 
-print("Improved model trained and saved successfully.")
+print("\nModel trained successfully with both datasets.")
