@@ -25,7 +25,7 @@ class ReviewRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"message": "Fake Review Detection API Running"}
+    return {"message": "Fake Review API Running"}
 
 @app.post("/predict")
 def predict_review(data: ReviewRequest):
